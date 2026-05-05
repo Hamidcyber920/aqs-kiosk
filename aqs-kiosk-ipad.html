@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>AQS Donate — iPad</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Stripe.js v3 powers Apple Pay on Safari/iOS -->
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--green:#1a6b4a;--green2:#144f38;--gold:#c9a84c;--text:#1c1c1c;--muted:#6b7280;--card-bg:rgba(255,255,255,0.92);--shadow:0 4px 24px rgba(26,107,74,0.12);}
+html,body{height:100%;width:100%;overflow:hidden;font-family:'DM Sans',sans-serif;background:var(--green);color:var(--text);-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse 80% 60% at 50% -10%,rgba(201,168,76,0.18) 0%,transparent 70%),radial-gradient(ellipse 60% 80% at 100% 100%,rgba(201,168,76,0.10) 0%,transparent 60%);pointer-events:none;z-index:0;}
+body::after{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='rgba(255,255,255,0.04)' stroke-width='1'%3E%3Cpath d='M30 0 L60 30 L30 60 L0 30Z'/%3E%3Cpath d='M30 10 L50 30 L30 50 L10 30Z'/%3E%3C/g%3E%3C/svg%3E");pointer-events:none;z-index:0;}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;z-index:10;padding:16px;overflow-y:auto;}
+.screen.active{display:flex;}
+.card{background:var(--card-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-radius:28px;width:100%;max-width:560px;padding:28px 24px;box-shadow:var(--shadow),0 0 0 1px rgba(201,168,76,0.15);}
+
+/* ── Header ── */
+.header{text-align:center;margin-bottom:20px;}
+.logo-ring{width:64px;height:64px;border-radius:50%;background:var(--green);border:2.5px solid var(--gold);display:flex;align-items:center;justify-content:center;margin:0 auto 10px;box-shadow:0 0 0 6px rgba(201,168,76,0.12);}
+.logo-ring svg{width:34px;height:34px;fill:var(--gold);}
+.org-name{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--green);letter-spacing:0.04em;}
+.org-sub{font-size:11px;color:var(--muted);letter-spacing:0.12em;text-transform:uppercase;margin-top:3px;}
+.device-badge{display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:rgba(0,0,0,0.06);padding:3px 10px;border-radius:20px;font-size:11px;color:#333;font-weight:500;}
+
+/* ── Categories & amounts same as Android ── */
+.section-label{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+.categories{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px;}
+.cat-btn{padding:7px 13px;border-radius:50px;border:1.5px solid rgba(26,107,74,0.2);background:transparent;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;color:var(--green2);cursor:pointer;transition:all 0.18s;}
+.cat-btn.active,.cat-btn:active{background:var(--green);border-color:var(--green);color:white;transform:scale(0.97);}
+.amount-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px;}
+.amt-btn{padding:17px 6px;border-radius:13px;border:2px solid rgba(26,107,74,0.14);background:rgba(26,107,74,0.04);font-family:'Cormorant Garamond',serif;font-size:22px;font-weight:600;color:var(--green2);cursor:pointer;transition:all 0.18s;}
+.amt-btn.active{border-color:var(--green);background:var(--green);color:white;transform:scale(0.97);box-shadow:0 4px 14px rgba(26,107,74,0.28);}
+.amt-btn.custom-btn{font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;}
+.custom-input-row{display:none;align-items:center;gap:9px;margin-bottom:14px;}
+.custom-input-row.visible{display:flex;}
+.pound-sign{font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;color:var(--green);}
+.custom-input{flex:1;border:2px solid var(--green);border-radius:12px;padding:10px 13px;font-family:'Cormorant Garamond',serif;font-size:27px;font-weight:600;color:var(--green2);text-align:center;outline:none;}
+
+/* ── Payment area ── */
+.payment-area{margin-top:4px;}
+
+/* Apple Pay button container — Stripe renders into this */
+#apple-pay-btn-wrap{
+  width:100%;
+  min-height:54px;
+  margin-bottom:0;
+  border-radius:14px;
+  overflow:hidden;
+  display:none; /* shown when Apple Pay available */
+}
+/* Force Stripe's Payment Request button to look right on iPad */
+#apple-pay-btn-wrap .StripeElement{
+  width:100% !important;
+}
+
+/* Amount required placeholder */
+.select-amount-prompt{
+  padding:16px;
+  border-radius:14px;
+  background:rgba(201,168,76,0.1);
+  border:1.5px dashed rgba(201,168,76,0.4);
+  text-align:center;
+  color:#7a5c00;
+  font-size:13px;
+  font-weight:500;
+}
+
+/* Divider */
+.pay-divider{display:flex;align-items:center;gap:10px;margin:10px 0;}
+.pay-divider-line{flex:1;height:1px;background:rgba(26,107,74,0.1);}
+.pay-divider-text{font-size:11px;color:var(--muted);font-weight:500;letter-spacing:0.05em;}
+
+/* Card fallback button */
+.card-pay-btn{width:100%;padding:15px;border-radius:50px;border:2px solid rgba(26,107,74,0.22);background:transparent;color:var(--green2);font-family:'DM Sans',sans-serif;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.18s;}
+.card-pay-btn:active{background:rgba(26,107,74,0.06);}
+.card-pay-btn:disabled{opacity:0.35;cursor:not-allowed;}
+.card-icon{font-size:18px;}
+
+/* Apple Pay hint */
+.ap-hint{margin-top:10px;text-align:center;font-size:11px;color:rgba(255,255,255,0.5);display:flex;align-items:center;justify-content:center;gap:5px;}
+
+/* Not available notice */
+.no-ap-notice{padding:12px 14px;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:11px;font-size:12px;color:#7a5c00;text-align:center;line-height:1.5;margin-bottom:10px;display:none;}
+
+/* ── Card modal ── */
+.card-modal-inner{max-width:400px;}
+#card-element{border:1.5px solid #e5e7eb;border-radius:10px;padding:13px;margin-bottom:6px;background:#fafafa;transition:border-color 0.2s;}
+#card-element.StripeElement--focus{border-color:var(--green);}
+.card-err{color:#dc2626;font-size:12px;min-height:16px;margin-bottom:10px;}
+.pay-now-btn{width:100%;padding:15px;border-radius:50px;border:none;background:linear-gradient(135deg,var(--green),var(--green2));color:white;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;box-shadow:0 4px 18px rgba(26,107,74,0.3);}
+.pay-now-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+/* ── Processing ── */
+#screen-processing .card{text-align:center;padding:48px 28px;}
+.spinner{width:56px;height:56px;border:4px solid rgba(26,107,74,0.15);border-top-color:var(--green);border-radius:50%;animation:spin 0.9s linear infinite;margin:0 auto 20px;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.processing-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:var(--green);margin-bottom:6px;}
+.processing-sub{color:var(--muted);font-size:13px;}
+
+/* ── Success ── */
+#screen-success .card{text-align:center;padding:44px 26px;}
+.success-circle{width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green2));display:flex;align-items:center;justify-content:center;margin:0 auto 16px;animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 8px 28px rgba(26,107,74,0.38);}
+@keyframes popIn{from{transform:scale(0);opacity:0;}to{transform:scale(1);opacity:1;}}
+.checkmark{font-size:34px;color:white;}
+.success-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:700;color:var(--green);}
+.arabic-dua{font-size:19px;color:var(--gold);margin:5px 0 8px;font-family:'Cormorant Garamond',serif;}
+.success-amount{font-family:'Cormorant Garamond',serif;font-size:42px;font-weight:700;color:var(--green2);margin-bottom:6px;}
+.success-method{display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.05);padding:4px 12px;border-radius:20px;font-size:12px;color:#333;font-weight:500;margin-bottom:12px;}
+.success-msg{color:var(--muted);font-size:13px;line-height:1.7;margin-bottom:20px;}
+.return-btn{padding:11px 32px;border-radius:50px;border:2px solid var(--green);background:transparent;color:var(--green);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
+.return-btn:active{background:var(--green);color:white;}
+.auto-return{margin-top:9px;font-size:12px;color:var(--muted);}
+
+/* ── Error ── */
+#screen-error .card{text-align:center;padding:44px 26px;}
+.error-icon{font-size:46px;margin-bottom:12px;}
+.error-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:700;color:#c0392b;margin-bottom:6px;}
+.error-msg{color:var(--muted);font-size:13px;margin-bottom:20px;line-height:1.5;}
+
+/* ── Setup notice ── */
+.setup-notice{background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.35);border-radius:11px;padding:9px 13px;margin-bottom:14px;font-size:12px;color:#7a5c00;text-align:center;line-height:1.5;}
+.demo-badge{display:inline-block;background:var(--gold);color:white;font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;letter-spacing:0.06em;margin-bottom:3px;text-transform:uppercase;}
+.footer-note{text-align:center;color:rgba(255,255,255,0.38);font-size:11px;margin-top:11px;}
+
+/* ── Gear / tap zone ── */
+.config-btn{position:fixed;top:14px;right:14px;width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.25);color:white;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:100;}
+.analytics-tap{position:fixed;bottom:0;left:0;width:60px;height:60px;z-index:100;}
+
+/* ── Modals (shared) ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:200;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal{background:white;border-radius:22px;padding:28px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.modal h2{font-family:'Cormorant Garamond',serif;font-size:22px;color:var(--green);margin-bottom:16px;}
+.pin-display{display:flex;gap:10px;justify-content:center;margin-bottom:20px;}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--green);background:transparent;transition:background 0.12s;}
+.pin-dot.filled{background:var(--green);}
+.pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.pin-key{padding:16px;border-radius:12px;border:1.5px solid #e5e7eb;background:#f9fafb;font-family:'DM Sans',sans-serif;font-size:20px;font-weight:600;color:var(--text);cursor:pointer;text-align:center;transition:all 0.12s;}
+.pin-key:active{background:var(--green);color:white;border-color:var(--green);}
+.pin-key.del{font-size:15px;color:var(--muted);}
+.pin-error{color:#dc2626;font-size:12px;text-align:center;min-height:16px;}
+.field-group{margin-bottom:12px;}
+.field-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:4px;}
+.field-input{width:100%;padding:10px 12px;border:1.5px solid #e5e7eb;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color 0.2s;}
+.field-input:focus{border-color:var(--green);}
+.modal-actions{display:flex;gap:9px;margin-top:18px;}
+.btn-cancel{flex:1;padding:11px;border-radius:50px;border:2px solid #e5e7eb;background:transparent;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
+.btn-save{flex:2;padding:11px;border-radius:50px;border:none;background:var(--green);color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
+
+/* ══ ANALYTICS (same as Android) ══ */
+#screen-analytics{justify-content:flex-start;padding:0;overflow-y:auto;background:#f0f4f1;}
+#screen-analytics::before,#screen-analytics::after{display:none;}
+.a-wrap{width:100%;max-width:600px;margin:0 auto;padding:18px 14px 44px;}
+.a-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+.a-title{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:700;color:var(--green);}
+.a-sub{font-size:12px;color:var(--muted);margin-top:2px;}
+.close-a{padding:8px 16px;border-radius:50px;border:2px solid var(--green);background:transparent;color:var(--green);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:600;cursor:pointer;}
+.close-a:active{background:var(--green);color:white;}
+.period-tabs{display:flex;gap:5px;margin-bottom:14px;}
+.period-tab{flex:1;padding:8px 4px;border-radius:50px;border:1.5px solid rgba(26,107,74,0.2);background:white;color:var(--green2);font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;text-align:center;transition:all 0.14s;}
+.period-tab.active{background:var(--green);border-color:var(--green);color:white;}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;}
+.stat-card{background:white;border-radius:16px;padding:14px 13px;box-shadow:0 2px 10px rgba(26,107,74,0.06);}
+.s-label{font-size:11px;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+.s-val{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:700;color:var(--green);line-height:1;}
+.s-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+.section-card{background:white;border-radius:16px;padding:16px 15px;margin-bottom:10px;box-shadow:0 2px 10px rgba(26,107,74,0.06);}
+.sc-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;}
+.chart-bars{display:flex;align-items:flex-end;gap:5px;height:88px;margin-top:10px;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.bar-fill{width:100%;border-radius:5px 5px 0 0;background:var(--green);min-height:3px;transition:height 0.5s ease;}
+.bar-label{font-size:10px;color:var(--muted);}
+.bar-val{font-size:9px;font-weight:600;color:var(--green2);}
+.cat-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.cat-row:last-child{margin-bottom:0;}
+.cn{font-size:12px;font-weight:500;color:var(--text);width:72px;flex-shrink:0;}
+.cb-wrap{flex:1;height:7px;background:#f0f0f0;border-radius:8px;overflow:hidden;}
+.cb{height:100%;border-radius:8px;background:var(--green);transition:width 0.55s ease;}
+.cb.g{background:var(--gold);}
+.cb.t{background:#0891b2;}
+.cb.p{background:#7c3aed;}
+.cb.o{background:#ea580c;}
+.cb.pk{background:#db2777;}
+.cb.s{background:#475569;}
+.ca{font-size:12px;font-weight:600;color:var(--green2);width:48px;text-align:right;flex-shrink:0;}
+.cc{font-size:11px;color:var(--muted);width:30px;text-align:right;flex-shrink:0;}
+.tx-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f3f4f6;}
+.tx-row:last-child{border-bottom:none;padding-bottom:0;}
+.tx-l{display:flex;align-items:center;gap:8px;}
+.tx-dot{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;}
+.tx-cat{font-size:13px;font-weight:500;color:var(--text);}
+.tx-time{font-size:11px;color:var(--muted);margin-top:1px;}
+.tx-amt{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;color:var(--green2);}
+.share-box{background:white;border-radius:16px;padding:15px;margin-bottom:10px;box-shadow:0 2px 10px rgba(26,107,74,0.06);}
+.share-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px;}
+.share-row{display:flex;gap:7px;}
+.share-url{flex:1;padding:8px 10px;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:8px;font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.copy-btn{padding:8px 13px;border-radius:8px;border:none;background:var(--green);color:white;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
+.share-note{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5;}
+.export-btn{width:100%;padding:13px;border-radius:50px;border:none;background:var(--green2);color:white;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;}
+@media(max-height:680px){.card{padding:20px 18px;}.amt-btn{padding:14px 6px;font-size:19px;}.header{margin-bottom:14px;}}
+</style>
+</head>
+<body>
+<button class="config-btn" onclick="openConfig()">⚙</button>
+<div class="analytics-tap" id="analytics-tap"></div>
+
+<!-- SCREEN 1: DONATE -->
+<div id="screen-donate" class="screen active">
+  <div class="card">
+    <div class="header">
+      <div class="logo-ring">
+        <svg viewBox="0 0 64 64"><path d="M32 8C18 8 8 18 8 32c0 14 10 24 24 24 4 0 7.5-1 10.5-2.8C34 50 28 41.5 28 32s6-18 14.5-21.2C39.5 9 36 8 32 8Z"/><polygon points="46,10 47.5,14.5 52,14.5 48.2,17.2 49.7,21.7 46,19 42.3,21.7 43.8,17.2 40,14.5 44.5,14.5"/></svg>
+      </div>
+      <div class="org-name">Abdullah Quilliam Society</div>
+      <div class="org-sub">Britain's First Mosque · Est. 1887</div>
+      <div class="device-badge">
+        <!-- Apple logo path -->
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+        iPad · Apple Pay
+      </div>
+    </div>
+
+    <div id="setup-notice" class="setup-notice">
+      <div class="demo-badge">Demo Mode</div><br>
+      Add Stripe keys in ⚙ Settings to enable Apple Pay.
+    </div>
+
+    <!-- Apple Pay not available notice (shown on non-Safari/non-enrolled devices) -->
+    <div class="no-ap-notice" id="no-ap-notice">
+      ⚠️ Apple Pay not available on this browser or device.<br>
+      Use Safari on iPad, or ensure Apple Pay is set up in Wallet.
+    </div>
+
+    <div class="section-label">Donation type</div>
+    <div class="categories" id="categories">
+      <button class="cat-btn active" data-cat="General">General</button>
+      <button class="cat-btn" data-cat="Sadaqah">Sadaqah</button>
+      <button class="cat-btn" data-cat="Zakat">Zakat</button>
+      <button class="cat-btn" data-cat="Masjid">Masjid</button>
+      <button class="cat-btn" data-cat="Dates">Dates</button>
+      <button class="cat-btn" data-cat="Palestine">Palestine</button>
+      <button class="cat-btn" data-cat="Fitrana">Fitrana</button>
+    </div>
+
+    <div class="section-label">Choose amount</div>
+    <div class="amount-grid">
+      <button class="amt-btn" data-amount="3">£3</button>
+      <button class="amt-btn" data-amount="5">£5</button>
+      <button class="amt-btn" data-amount="10">£10</button>
+      <button class="amt-btn" data-amount="15">£15</button>
+      <button class="amt-btn" data-amount="20">£20</button>
+      <button class="amt-btn" data-amount="25">£25</button>
+      <button class="amt-btn" data-amount="30">£30</button>
+      <button class="amt-btn" data-amount="40">£40</button>
+      <button class="amt-btn" data-amount="50">£50</button>
+      <button class="amt-btn" data-amount="60">£60</button>
+      <button class="amt-btn" data-amount="100">£100</button>
+      <button class="amt-btn custom-btn" data-amount="custom">Other</button>
+    </div>
+    <div class="custom-input-row" id="custom-row">
+      <span class="pound-sign">£</span>
+      <input type="number" class="custom-input" id="custom-input" placeholder="0" min="1" max="10000" inputmode="numeric">
+    </div>
+
+    <!-- Payment buttons -->
+    <div class="payment-area" id="payment-area">
+      <div class="select-amount-prompt" id="amount-prompt">👆 Select an amount to reveal Apple Pay</div>
+
+      <!-- Stripe Payment Request Button (Apple Pay on Safari) -->
+      <div id="apple-pay-btn-wrap"></div>
+
+      <div class="pay-divider" id="pay-divider" style="display:none">
+        <div class="pay-divider-line"></div>
+        <div class="pay-divider-text">or pay by card</div>
+        <div class="pay-divider-line"></div>
+      </div>
+
+      <!-- Card fallback -->
+      <button class="card-pay-btn" id="card-pay-btn" onclick="openCardModal()" disabled>
+        <span class="card-icon">💳</span> Pay by card instead
+      </button>
+    </div>
+  </div>
+  <div class="footer-note">Registered Charity · Apple Pay · Stripe</div>
+</div>
+
+<!-- SCREEN 2: PROCESSING -->
+<div id="screen-processing" class="screen">
+  <div class="card">
+    <div class="spinner"></div>
+    <div class="processing-title">Processing…</div>
+    <div class="processing-sub" id="processing-msg">Confirming with Apple Pay</div>
+  </div>
+</div>
+
+<!-- SCREEN 3: SUCCESS -->
+<div id="screen-success" class="screen">
+  <div class="card">
+    <div class="success-circle"><span class="checkmark">✓</span></div>
+    <div class="success-title">JazākAllāhu Khayran</div>
+    <div class="arabic-dua">جزاك الله خيرًا</div>
+    <div class="success-amount" id="success-amount">£0</div>
+    <div class="success-method" id="success-method">🍎 Apple Pay</div>
+    <div class="success-msg" id="success-msg"></div>
+    <button class="return-btn" onclick="resetKiosk()">← Make another donation</button>
+    <div class="auto-return">Returning in <span id="countdown">8</span>s</div>
+  </div>
+</div>
+
+<!-- SCREEN 4: ERROR -->
+<div id="screen-error" class="screen">
+  <div class="card">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">Payment Unsuccessful</div>
+    <div class="error-msg" id="error-msg">Please try again.</div>
+    <button style="width:100%;padding:15px;border-radius:50px;border:none;background:var(--green);color:white;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;" onclick="goBack()">Try Again</button>
+  </div>
+</div>
+
+<!-- SCREEN 5: ANALYTICS -->
+<div id="screen-analytics" class="screen">
+  <div class="a-wrap">
+    <div class="a-header">
+      <div><div class="a-title">Donation Analytics</div><div class="a-sub" id="a-date">—</div></div>
+      <button class="close-a" onclick="closeAnalytics()">✕ Close</button>
+    </div>
+    <div class="period-tabs">
+      <button class="period-tab active" data-period="today" onclick="setPeriod('today')">Today</button>
+      <button class="period-tab" data-period="week" onclick="setPeriod('week')">Week</button>
+      <button class="period-tab" data-period="month" onclick="setPeriod('month')">Month</button>
+      <button class="period-tab" data-period="all" onclick="setPeriod('all')">All Time</button>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="s-label">Total Raised</div><div class="s-val" id="s-total">£0</div><div class="s-sub" id="s-count">0 donations</div></div>
+      <div class="stat-card"><div class="s-label">Average Gift</div><div class="s-val" id="s-avg">£0</div><div class="s-sub">per donation</div></div>
+      <div class="stat-card"><div class="s-label">Largest Gift</div><div class="s-val" id="s-max">£0</div><div class="s-sub" id="s-maxcat">—</div></div>
+      <div class="stat-card"><div class="s-label">Top Category</div><div class="s-val" style="font-size:19px" id="s-topcat">—</div><div class="s-sub" id="s-topcatamt">£0 raised</div></div>
+    </div>
+    <div class="section-card"><div class="sc-title">Daily totals (last 7 days)</div><div class="chart-bars" id="chart-bars"></div></div>
+    <div class="section-card"><div class="sc-title">Breakdown by category</div><div id="cat-breakdown"></div></div>
+    <div class="section-card"><div class="sc-title">Recent donations</div><div id="recent-tx"></div></div>
+    <div class="share-box">
+      <div class="share-title">📊 Remote Dashboard Link</div>
+      <div class="share-row"><div class="share-url" id="share-url">Configure keys to generate</div><button class="copy-btn" onclick="copyLink()">Copy</button></div>
+      <div class="share-note">Send to trustees or board to view live analytics on any device.</div>
+    </div>
+    <button class="export-btn" onclick="exportCSV()">⬇ Export CSV</button>
+  </div>
+</div>
+
+<!-- PIN MODAL -->
+<div class="modal-overlay" id="pin-modal">
+  <div class="modal">
+    <h2>🔐 Staff Access</h2>
+    <div class="pin-display" id="pin-display">
+      <div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div>
+      <div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinKey('1')">1</button><button class="pin-key" onclick="pinKey('2')">2</button><button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button><button class="pin-key" onclick="pinKey('5')">5</button><button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button><button class="pin-key" onclick="pinKey('8')">8</button><button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinCancel()">✕</button><button class="pin-key" onclick="pinKey('0')">0</button><button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+    <div class="pin-error" id="pin-error"></div>
+  </div>
+</div>
+
+<!-- CARD MODAL (fallback) -->
+<div class="modal-overlay" id="card-modal">
+  <div class="modal card-modal-inner">
+    <h2>💳 Pay by Card</h2>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Amount: <strong id="card-modal-amount" style="color:var(--green)">£0</strong> · <span id="card-modal-cat"></span></div>
+    <div id="card-element"></div>
+    <div class="card-err" id="card-err"></div>
+    <button class="pay-now-btn" id="pay-now-btn" onclick="submitCardPayment()">Pay Now</button>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn-cancel" onclick="closeCardModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIG MODAL -->
+<div class="modal-overlay" id="config-modal">
+  <div class="modal">
+    <h2>⚙ iPad Kiosk Setup</h2>
+    <div class="field-group"><div class="field-label">Stripe Publishable Key</div><input type="text" class="field-input" id="cfg-pk" placeholder="pk_live_…"></div>
+    <div class="field-group"><div class="field-label">Backend URL (create PaymentIntent endpoint)</div><input type="text" class="field-input" id="cfg-backend" placeholder="https://yourserver.com/create-payment-intent"></div>
+    <div class="field-group"><div class="field-label">Analytics PIN (4 digits)</div><input type="password" class="field-input" id="cfg-pin" placeholder="1234" maxlength="4" inputmode="numeric"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeConfig()">Cancel</button>
+      <button class="btn-save" onclick="saveConfig()">Save & Reload</button>
+    </div>
+    <div style="margin-top:14px;padding:11px 12px;background:#f0fdf4;border-radius:9px;font-size:12px;color:#166534;line-height:1.6;">
+      <strong>Apple Pay requirements:</strong><br>
+      1. Open in Safari on iPad<br>
+      2. iPad must have a card added in Wallet app<br>
+      3. Your domain must be registered in Stripe Dashboard → Settings → Payment Methods → Apple Pay<br>
+      4. Serve over HTTPS<br><br>
+      <strong>Default PIN: 1234</strong> — change after setup.
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ STATE ══
+let selectedAmount=null, selectedCat='General', stripe=null, paymentRequest=null, prButton=null;
+let cardElement=null, countdownTimer=null, currentPeriod='today', pinBuffer='';
+let paymentMethod='Apple Pay';
+
+const CFG={pk:localStorage.getItem('aqs_pk')||'',backend:localStorage.getItem('aqs_backend')||'',pin:localStorage.getItem('aqs_pin')||'1234'};
+function isConfigured(){return!!(CFG.pk&&CFG.backend);}
+if(isConfigured())document.getElementById('setup-notice').style.display='none';
+
+// ══ STRIPE INIT ══
+// Initialise Stripe.js and Payment Request (Apple Pay) on load
+async function initStripe(){
+  if(!CFG.pk) return;
+  stripe = Stripe(CFG.pk);
+
+  // Payment Request covers Apple Pay on Safari iOS/iPadOS
+  paymentRequest = stripe.paymentRequest({
+    country:'GB',
+    currency:'gbp',
+    total:{label:'Abdullah Quilliam Society',amount:100}, // placeholder, updated on amount select
+    requestPayerName:false,
+    requestPayerEmail:false,
+  });
+
+  const elements = stripe.elements();
+  prButton = elements.create('paymentRequestButton',{
+    paymentRequest,
+    style:{paymentRequestButton:{type:'donate',theme:'dark',height:'52px'}},
+  });
+
+  // Check availability
+  const canMakePayment = await paymentRequest.canMakePayment();
+  if(canMakePayment && canMakePayment.applePay){
+    prButton.mount('#apple-pay-btn-wrap');
+    document.getElementById('apple-pay-btn-wrap').style.display='block';
+    document.getElementById('pay-divider').style.display='flex';
+  } else {
+    // Apple Pay not available — show notice, card only
+    document.getElementById('no-ap-notice').style.display='block';
+  }
+
+  // Listen for Apple Pay payment method
+  paymentRequest.on('paymentmethod', async(ev)=>{
+    showScreen('screen-processing');
+    setMsg('Confirming with Apple Pay…');
+    try{
+      // Create PaymentIntent on backend
+      const resp = await fetch(CFG.backend,{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({amount:Math.round(selectedAmount*100),currency:'gbp',description:`AQS — ${selectedCat}`,metadata:{category:selectedCat,source:'ipad-applepay'}}),
+      });
+      const {client_secret, error:backendError} = await resp.json();
+      if(backendError){ev.complete('fail');showError(backendError);return;}
+
+      const {paymentIntent, error} = await stripe.confirmCardPayment(client_secret,{payment_method:ev.paymentMethod.id},{handleActions:false});
+      if(error){ev.complete('fail');showError(error.message);return;}
+      if(paymentIntent.status==='requires_action'){
+        ev.complete('success');
+        const {error:actionError} = await stripe.confirmCardPayment(client_secret);
+        if(actionError){showError(actionError.message);return;}
+      } else {
+        ev.complete('success');
+      }
+      paymentMethod='Apple Pay';
+      record(selectedAmount,selectedCat);
+    }catch(e){ev.complete('fail');showError('Unexpected error. Try again.');console.error(e);}
+  });
+
+  // Also set up card element for fallback modal
+  const cardElements = stripe.elements();
+  cardElement = cardElements.create('card',{style:{base:{fontFamily:'DM Sans, sans-serif',fontSize:'16px',color:'#1c1c1c'}}});
+  cardElement.mount('#card-element');
+  cardElement.on('change',e=>{document.getElementById('card-err').textContent=e.error?e.error.message:'';});
+}
+
+// Demo mode — no Stripe keys
+async function demoPay(){
+  showScreen('screen-processing');
+  setMsg('Processing demo payment…');
+  await sleep(2000);
+  paymentMethod='Apple Pay (Demo)';
+  record(selectedAmount,selectedCat);
+}
+
+// ══ DONATION UI ══
+document.getElementById('categories').addEventListener('click',e=>{
+  const b=e.target.closest('.cat-btn');if(!b)return;
+  document.querySelectorAll('.cat-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');selectedCat=b.dataset.cat;
+  updatePaymentRequest();
+});
+
+document.querySelectorAll('.amt-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.amt-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const cr=document.getElementById('custom-row');
+    if(btn.dataset.amount==='custom'){cr.classList.add('visible');selectedAmount=null;document.getElementById('custom-input').focus();}
+    else{cr.classList.remove('visible');selectedAmount=parseInt(btn.dataset.amount);}
+    updatePaymentUI();
+  });
+});
+
+document.getElementById('custom-input').addEventListener('input',e=>{
+  const v=parseFloat(e.target.value);selectedAmount=(v&&v>0)?v:null;updatePaymentUI();
+});
+
+function updatePaymentUI(){
+  const hasAmount=selectedAmount&&selectedAmount>0;
+  document.getElementById('amount-prompt').style.display=hasAmount?'none':'block';
+  document.getElementById('apple-pay-btn-wrap').style.display=(hasAmount&&prButton)?'block':'none';
+  document.getElementById('pay-divider').style.display=(hasAmount&&prButton)?'flex':'none';
+  document.getElementById('card-pay-btn').disabled=!hasAmount;
+  updatePaymentRequest();
+}
+
+function updatePaymentRequest(){
+  if(!paymentRequest||!selectedAmount||selectedAmount<=0) return;
+  try{
+    paymentRequest.update({
+      total:{label:`${selectedCat} — Abdullah Quilliam Society`,amount:Math.round(selectedAmount*100)},
+    });
+  }catch(e){/* ignore if not yet mounted */}
+}
+
+// ══ CARD FALLBACK ══
+function openCardModal(){
+  if(!selectedAmount||selectedAmount<=0)return;
+  document.getElementById('card-modal-amount').textContent=`£${selectedAmount.toFixed(2)}`;
+  document.getElementById('card-modal-cat').textContent=selectedCat;
+  document.getElementById('card-err').textContent='';
+  document.getElementById('card-modal').classList.add('open');
+}
+function closeCardModal(){document.getElementById('card-modal').classList.remove('open');}
+
+async function submitCardPayment(){
+  if(!stripe||!cardElement)return;
+  const btn=document.getElementById('pay-now-btn');
+  btn.disabled=true;btn.textContent='Processing…';
+  try{
+    const resp=await fetch(CFG.backend,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({amount:Math.round(selectedAmount*100),currency:'gbp',description:`AQS — ${selectedCat}`,metadata:{category:selectedCat,source:'ipad-card'}})});
+    const{client_secret,error:be}=await resp.json();
+    if(be){document.getElementById('card-err').textContent=be;btn.disabled=false;btn.textContent='Pay Now';return;}
+    const{error}=await stripe.confirmCardPayment(client_secret,{payment_method:{card:cardElement}});
+    if(error){document.getElementById('card-err').textContent=error.message;btn.disabled=false;btn.textContent='Pay Now';return;}
+    closeCardModal();paymentMethod='Card';record(selectedAmount,selectedCat);
+  }catch(e){document.getElementById('card-err').textContent='Unexpected error.';btn.disabled=false;btn.textContent='Pay Now';}
+}
+
+// ══ SCREENS ══
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+function setMsg(m){document.getElementById('processing-msg').textContent=m;}
+function record(a,c){saveD(a,c);showSuccess(a,c);}
+function showSuccess(a,c){
+  document.getElementById('success-amount').textContent=`£${parseFloat(a).toFixed(2)}`;
+  document.getElementById('success-method').textContent=(paymentMethod.includes('Apple')?'🍎 ':'💳 ')+paymentMethod;
+  document.getElementById('success-msg').textContent=`Your ${c} donation has been received. May Allah bless you abundantly.`;
+  showScreen('screen-success');tick(8);
+}
+function showError(m){document.getElementById('error-msg').textContent=m||'Payment failed.';showScreen('screen-error');}
+function goBack(){showScreen('screen-donate');}
+function tick(s){clearInterval(countdownTimer);let r=s;document.getElementById('countdown').textContent=r;countdownTimer=setInterval(()=>{r--;document.getElementById('countdown').textContent=r;if(r<=0){clearInterval(countdownTimer);resetKiosk();}},1000);}
+function resetKiosk(){
+  clearInterval(countdownTimer);selectedAmount=null;selectedCat='General';
+  document.querySelectorAll('.amt-btn,.cat-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.cat-btn[data-cat="General"]').classList.add('active');
+  document.getElementById('custom-row').classList.remove('visible');
+  document.getElementById('custom-input').value='';
+  document.getElementById('amount-prompt').style.display='block';
+  document.getElementById('apple-pay-btn-wrap').style.display='none';
+  document.getElementById('pay-divider').style.display='none';
+  document.getElementById('card-pay-btn').disabled=true;
+  showScreen('screen-donate');
+}
+
+// ══ STORE ══
+const SKEY='aqs_donations';
+function load(){try{return JSON.parse(localStorage.getItem(SKEY)||'[]');}catch{return[];}}
+function saveD(a,c){const d=load();d.push({id:Date.now(),amount:parseFloat(a),category:c,ts:new Date().toISOString(),method:paymentMethod});localStorage.setItem(SKEY,JSON.stringify(d));}
+function filterP(d,p){const n=new Date();return(d||[]).filter(x=>{const dt=new Date(x.ts);if(p==='today')return dt.toDateString()===n.toDateString();if(p==='week'){const w=new Date(n);w.setDate(n.getDate()-7);return dt>=w;}if(p==='month')return dt.getMonth()===n.getMonth()&&dt.getFullYear()===n.getFullYear();return true;});}
+
+// ══ PIN ══
+function openPinModal(){pinBuffer='';updateDots();document.getElementById('pin-error').textContent='';document.getElementById('pin-modal').classList.add('open');}
+function pinKey(d){if(pinBuffer.length>=4)return;pinBuffer+=d;updateDots();if(pinBuffer.length===4){setTimeout(()=>{if(pinBuffer===CFG.pin){document.getElementById('pin-modal').classList.remove('open');openAnalytics();}else{document.getElementById('pin-error').textContent='Incorrect PIN.';pinBuffer='';updateDots();}},180);}}
+function pinDel(){pinBuffer=pinBuffer.slice(0,-1);updateDots();}
+function pinCancel(){pinBuffer='';document.getElementById('pin-modal').classList.remove('open');}
+function updateDots(){for(let i=0;i<4;i++)document.getElementById(`pd${i}`).classList.toggle('filled',i<pinBuffer.length);}
+
+// ══ ANALYTICS ══
+const CBARS=['','g','t','p','o','pk','s'];
+const ALL_CATS=['General','Sadaqah','Zakat','Masjid','Dates','Palestine','Fitrana'];
+function openAnalytics(){showScreen('screen-analytics');renderA();}
+function closeAnalytics(){showScreen('screen-donate');}
+function setPeriod(p){currentPeriod=p;document.querySelectorAll('.period-tab').forEach(t=>t.classList.toggle('active',t.dataset.period===p));renderA();}
+function renderA(){
+  const all=load(),data=filterP(all,currentPeriod),now=new Date();
+  const labels={today:`Today · ${now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long'})}`,week:'Last 7 Days',month:now.toLocaleDateString('en-GB',{month:'long',year:'numeric'}),all:'All Time'};
+  document.getElementById('a-date').textContent=labels[currentPeriod];
+  const total=data.reduce((s,d)=>s+d.amount,0),count=data.length,avg=count?total/count:0,maxD=data.reduce((m,d)=>d.amount>(m?.amount||0)?d:m,null);
+  document.getElementById('s-total').textContent=`£${total.toFixed(2)}`;document.getElementById('s-count').textContent=`${count} donation${count!==1?'s':''}`;document.getElementById('s-avg').textContent=`£${avg.toFixed(2)}`;document.getElementById('s-max').textContent=maxD?`£${maxD.amount.toFixed(2)}`:'£0';document.getElementById('s-maxcat').textContent=maxD?maxD.category:'—';
+  const catT={},catC={};data.forEach(d=>{catT[d.category]=(catT[d.category]||0)+d.amount;catC[d.category]=(catC[d.category]||0)+1;});
+  const sorted=Object.entries(catT).sort((a,b)=>b[1]-a[1]),top=sorted[0];
+  document.getElementById('s-topcat').textContent=top?top[0]:'—';document.getElementById('s-topcatamt').textContent=top?`£${top[1].toFixed(2)} raised`:'—';
+  const maxC=top?top[1]:1;
+  document.getElementById('cat-breakdown').innerHTML=ALL_CATS.map((cat,i)=>{const a=catT[cat]||0,c=catC[cat]||0,pct=Math.round((a/maxC)*100);return`<div class="cat-row"><div class="cn">${cat}</div><div class="cb-wrap"><div class="cb ${CBARS[i]}" style="width:${pct}%"></div></div><div class="ca">£${a.toFixed(0)}</div><div class="cc">${c}x</div></div>`;}).join('');
+  const days=[];for(let i=6;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=d.toDateString(),lbl=d.toLocaleDateString('en-GB',{weekday:'short'}),t=all.filter(x=>new Date(x.ts).toDateString()===k).reduce((s,x)=>s+x.amount,0);days.push({lbl,t});}
+  const maxV=Math.max(...days.map(d=>d.t),1);
+  document.getElementById('chart-bars').innerHTML=days.map(d=>{const h=Math.max(Math.round((d.t/maxV)*80),d.t?5:2);return`<div class="bar-col"><div class="bar-val">${d.t?'£'+Math.round(d.t):''}</div><div class="bar-fill" style="height:${h}px"></div><div class="bar-label">${d.lbl}</div></div>`;}).join('');
+  const recent=[...data].sort((a,b)=>b.id-a.id).slice(0,8);
+  document.getElementById('recent-tx').innerHTML=recent.length?recent.map(d=>{const dt=new Date(d.ts);return`<div class="tx-row"><div class="tx-l"><div class="tx-dot"></div><div><div class="tx-cat">${d.category}</div><div class="tx-time">${dt.toLocaleDateString('en-GB',{day:'numeric',month:'short'})} · ${dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</div></div></div><div class="tx-amt">£${d.amount.toFixed(2)}</div></div>`;}).join(''):'<div style="text-align:center;color:#9ca3af;font-size:13px;padding:12px">No donations in this period</div>';
+  updateShareLink(all);
+}
+function updateShareLink(d){const p=btoa(unescape(encodeURIComponent(JSON.stringify(d||load()))));const base=window.location.href.replace(/[^/]*$/,'').replace(/\?.*$/,'');const link=`${base}aqs-dashboard.html?data=${p}`;const el=document.getElementById('share-url');el.textContent=link;el.dataset.link=link;}
+function copyLink(){const link=document.getElementById('share-url').dataset.link;navigator.clipboard.writeText(link).then(()=>{const b=document.querySelector('.copy-btn');b.textContent='✓ Copied';setTimeout(()=>b.textContent='Copy',2000);});}
+function exportCSV(){const data=filterP(load(),currentPeriod);const rows=data.map(d=>{const dt=new Date(d.ts);return`${dt.toLocaleDateString('en-GB')},${dt.toLocaleTimeString('en-GB')},${d.category},${d.amount.toFixed(2)},${d.method||''}`;});const blob=new Blob(['Date,Time,Category,Amount (£),Method\n'+rows.join('\n')],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`AQS_iPad_${currentPeriod}_${new Date().toISOString().slice(0,10)}.csv`;a.click();}
+
+// ══ LONG-PRESS TAP ZONE ══
+let pressTimer=null;
+const tapZ=document.getElementById('analytics-tap');
+tapZ.addEventListener('touchstart',()=>{pressTimer=setTimeout(openPinModal,1200);},{passive:true});
+tapZ.addEventListener('touchend',()=>clearTimeout(pressTimer),{passive:true});
+tapZ.addEventListener('mousedown',()=>{pressTimer=setTimeout(openPinModal,1200);});
+tapZ.addEventListener('mouseup',()=>clearTimeout(pressTimer));
+
+// ══ CONFIG ══
+function openConfig(){document.getElementById('cfg-pk').value=CFG.pk;document.getElementById('cfg-backend').value=CFG.backend;document.getElementById('cfg-pin').value=CFG.pin;document.getElementById('config-modal').classList.add('open');}
+function closeConfig(){document.getElementById('config-modal').classList.remove('open');}
+function saveConfig(){localStorage.setItem('aqs_pk',document.getElementById('cfg-pk').value.trim());localStorage.setItem('aqs_backend',document.getElementById('cfg-backend').value.trim());const p=document.getElementById('cfg-pin').value.trim();if(/^\d{4}$/.test(p))localStorage.setItem('aqs_pin',p);closeConfig();window.location.reload();}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+let lt=0;document.addEventListener('touchend',e=>{const n=Date.now();if(n-lt<300)e.preventDefault();lt=n;},{passive:false});
+
+// ══ BOOT ══
+// Init Stripe on load, or wire demo mode
+if(CFG.pk){initStripe();}
+else{
+  // Demo: wire Apple Pay button area to simulate
+  document.getElementById('apple-pay-btn-wrap').innerHTML=`<button onclick="if(selectedAmount&&selectedAmount>0)demoPay()" style="width:100%;padding:16px;border-radius:14px;border:none;background:#000;color:white;font-size:16px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;"><svg viewBox='0 0 24 24' width='20' height='20' fill='white'><path d='M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z'/></svg> Donate with Apple Pay</button>`;
+}
+</script>
+</body>
+</html>

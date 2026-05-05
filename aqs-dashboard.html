@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AQS Donation Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--green:#1a6b4a;--green2:#144f38;--gold:#c9a84c;--text:#1c1c1c;--muted:#6b7280;}
+body{font-family:'DM Sans',sans-serif;background:#f0f4f1;color:var(--text);min-height:100vh;}
+
+/* ── Top bar ── */
+.topbar{background:var(--green);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;box-shadow:0 2px 12px rgba(0,0,0,0.15);}
+.tb-left{display:flex;align-items:center;gap:14px;}
+.tb-logo{width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.12);border:1.5px solid var(--gold);display:flex;align-items:center;justify-content:center;}
+.tb-logo svg{width:22px;height:22px;fill:var(--gold);}
+.tb-title{color:white;}
+.tb-name{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;letter-spacing:0.03em;}
+.tb-sub{font-size:11px;opacity:0.6;letter-spacing:0.08em;text-transform:uppercase;}
+.tb-right{display:flex;align-items:center;gap:10px;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+.live-label{color:rgba(255,255,255,0.7);font-size:12px;}
+.last-updated{color:rgba(255,255,255,0.5);font-size:11px;}
+
+/* ── Layout ── */
+.container{max-width:1100px;margin:0 auto;padding:24px 20px 48px;}
+
+/* ── Period tabs ── */
+.period-tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+.period-tab{padding:9px 20px;border-radius:50px;border:1.5px solid rgba(26,107,74,0.2);background:white;color:var(--green2);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:all 0.15s;}
+.period-tab.active{background:var(--green);border-color:var(--green);color:white;}
+
+/* ── KPI grid ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px;}
+.kpi-card{background:white;border-radius:18px;padding:20px 18px;box-shadow:0 2px 12px rgba(26,107,74,0.06);border-left:4px solid var(--green);}
+.kpi-card.gold{border-left-color:var(--gold);}
+.kpi-card.teal{border-left-color:#0891b2;}
+.kpi-card.purple{border-left-color:#7c3aed;}
+.kpi-label{font-size:11px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.kpi-val{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:700;color:var(--green);line-height:1;}
+.kpi-sub{font-size:12px;color:var(--muted);margin-top:5px;}
+
+/* ── Two-col layout ── */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+@media(max-width:720px){.two-col{grid-template-columns:1fr;}}
+
+/* ── Section card ── */
+.sc{background:white;border-radius:18px;padding:22px 20px;box-shadow:0 2px 12px rgba(26,107,74,0.06);margin-bottom:16px;}
+.sc-title{font-size:14px;font-weight:600;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.sc-badge{background:rgba(26,107,74,0.08);color:var(--green);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;}
+
+/* ── Bar chart ── */
+.chart-wrap{overflow-x:auto;}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;height:120px;min-width:340px;}
+.bar-col{flex:1;min-width:36px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.bar-fill{width:100%;border-radius:6px 6px 0 0;background:var(--green);min-height:4px;transition:height 0.5s ease;}
+.bar-fill.weekend{background:var(--gold);}
+.bar-label{font-size:11px;color:var(--muted);}
+.bar-val{font-size:11px;font-weight:600;color:var(--green2);}
+
+/* ── Category bars ── */
+.cat-row{display:flex;align-items:center;gap:10px;margin-bottom:13px;}
+.cat-row:last-child{margin-bottom:0;}
+.cn{font-size:13px;font-weight:500;color:var(--text);width:80px;flex-shrink:0;}
+.cb-wrap{flex:1;height:9px;background:#f0f0f0;border-radius:10px;overflow:hidden;}
+.cb{height:100%;border-radius:10px;background:var(--green);transition:width 0.6s ease;}
+.cb.g{background:var(--gold);}
+.cb.t{background:#0891b2;}
+.cb.p{background:#7c3aed;}
+.cb.o{background:#ea580c;}
+.cb.pk{background:#db2777;}
+.cb.s{background:#475569;}
+.ca{font-size:13px;font-weight:600;color:var(--green2);width:56px;text-align:right;flex-shrink:0;}
+.cc{font-size:11px;color:var(--muted);width:36px;text-align:right;flex-shrink:0;}
+.cpct{font-size:11px;color:var(--muted);width:36px;text-align:right;flex-shrink:0;}
+
+/* ── Transaction table ── */
+.tx-table{width:100%;border-collapse:collapse;}
+.tx-table th{font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--muted);padding:8px 12px;border-bottom:2px solid #f3f4f6;text-align:left;}
+.tx-table td{padding:11px 12px;border-bottom:1px solid #f9fafb;font-size:13px;color:var(--text);}
+.tx-table tr:last-child td{border-bottom:none;}
+.tx-table .amt{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--green2);}
+.cat-pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(26,107,74,0.08);color:var(--green);}
+
+/* ── No data ── */
+.no-data{text-align:center;padding:32px;color:var(--muted);font-size:14px;}
+.no-data-icon{font-size:36px;display:block;margin-bottom:10px;}
+
+/* ── Export + refresh ── */
+.action-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;}
+.action-btn{padding:12px 24px;border-radius:50px;border:none;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:opacity 0.2s;}
+.action-btn.primary{background:var(--green);color:white;}
+.action-btn.secondary{background:white;color:var(--green);border:2px solid var(--green);}
+.action-btn:active{opacity:0.8;}
+
+/* ── Empty state ── */
+.empty-state{text-align:center;padding:80px 20px;}
+.empty-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:700;color:var(--green);margin-bottom:10px;}
+.empty-sub{color:var(--muted);font-size:14px;line-height:1.7;max-width:440px;margin:0 auto;}
+
+/* ── Footer ── */
+.footer{text-align:center;padding:20px;color:var(--muted);font-size:12px;}
+
+@media(max-width:600px){
+  .kpi-val{font-size:32px;}
+  .tx-table .time-col{display:none;}
+  .container{padding:16px 14px 40px;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tb-left">
+    <div class="tb-logo">
+      <svg viewBox="0 0 64 64"><path d="M32 8 C18 8 8 18 8 32 C8 46 18 56 32 56 C36 56 39.5 55 42.5 53.2 C34 50 28 41.5 28 32 C28 22.5 34 14 42.5 10.8 C39.5 9 36 8 32 8Z"/><polygon points="46,10 47.5,14.5 52,14.5 48.2,17.2 49.7,21.7 46,19 42.3,21.7 43.8,17.2 40,14.5 44.5,14.5"/></svg>
+    </div>
+    <div class="tb-title">
+      <div class="tb-name">Abdullah Quilliam Society</div>
+      <div class="tb-sub">Donation Dashboard</div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <div class="live-dot"></div>
+    <span class="live-label">Live</span>
+    <span class="last-updated" id="last-updated">—</span>
+  </div>
+</div>
+
+<div class="container" id="main">
+  <!-- Rendered by JS -->
+</div>
+
+<div class="footer">Abdullah Quilliam Society · Registered Charity · Dashboard generated from kiosk data</div>
+
+<script>
+// ════════════════════════════════════════
+// DATA LOADING
+// Reads from URL ?data= param (base64 JSON)
+// ════════════════════════════════════════
+function loadData(){
+  const params=new URLSearchParams(window.location.search);
+  const raw=params.get('data');
+  if(!raw) return null;
+  try{
+    const json=decodeURIComponent(escape(atob(raw)));
+    return JSON.parse(json);
+  }catch(e){ console.error('Failed to parse data',e); return null; }
+}
+
+const ALL_CATS=['General','Sadaqah','Zakat','Masjid','Dates','Palestine','Fitrana'];
+const CBAR=['','g','t','p','o','pk','s'];
+const CAT_COLORS={'General':'#1a6b4a','Sadaqah':'#c9a84c','Zakat':'#0891b2','Masjid':'#7c3aed','Dates':'#ea580c','Palestine':'#db2777','Fitrana':'#475569'};
+
+let allDonations=loadData();
+let currentPeriod='today';
+
+function filter(d,p){
+  const n=new Date();
+  return (d||[]).filter(x=>{
+    const dt=new Date(x.ts);
+    if(p==='today') return dt.toDateString()===n.toDateString();
+    if(p==='week'){ const w=new Date(n); w.setDate(n.getDate()-7); return dt>=w; }
+    if(p==='month') return dt.getMonth()===n.getMonth()&&dt.getFullYear()===n.getFullYear();
+    return true;
+  });
+}
+
+function fmt(n){ return n%1===0?`£${n}`:`£${n.toFixed(2)}`; }
+
+// ════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════
+function render(){
+  const main=document.getElementById('main');
+
+  if(!allDonations){
+    main.innerHTML=`<div class="empty-state">
+      <div style="font-size:48px;margin-bottom:16px">📊</div>
+      <div class="empty-title">No data received</div>
+      <div class="empty-sub">Open the analytics screen on the kiosk, then tap <strong>Copy</strong> next to the dashboard link and re-open it in your browser.</div>
+    </div>`;
+    return;
+  }
+
+  document.getElementById('last-updated').textContent=`Updated ${new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}`;
+
+  const data=filter(allDonations,currentPeriod);
+  const total=data.reduce((s,d)=>s+d.amount,0);
+  const count=data.length;
+  const avg=count?total/count:0;
+  const maxD=data.reduce((m,d)=>d.amount>(m?.amount||0)?d:m,null);
+  const catT={},catC={};
+  data.forEach(d=>{ catT[d.category]=(catT[d.category]||0)+d.amount; catC[d.category]=(catC[d.category]||0)+1; });
+  const sorted=Object.entries(catT).sort((a,b)=>b[1]-a[1]);
+  const top=sorted[0];
+  const now=new Date();
+  const pLabels={today:`Today · ${now.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}`,week:'Last 7 Days',month:now.toLocaleDateString('en-GB',{month:'long',year:'numeric'}),all:'All Time'};
+
+  // 7-day chart data
+  const days=[];
+  for(let i=13;i>=0;i--){
+    const d=new Date(); d.setDate(d.getDate()-i);
+    const k=d.toDateString();
+    const lbl=d.toLocaleDateString('en-GB',{weekday:'short'});
+    const dateNum=d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+    const t=allDonations.filter(x=>new Date(x.ts).toDateString()===k).reduce((s,x)=>s+x.amount,0);
+    const isWe=d.getDay()===0||d.getDay()===6;
+    days.push({lbl,dateNum,t,isWe});
+  }
+  const maxV=Math.max(...days.map(d=>d.t),1);
+
+  // Recent
+  const recent=[...data].sort((a,b)=>b.id-a.id).slice(0,20);
+
+  main.innerHTML=`
+    <!-- Period tabs -->
+    <div class="period-tabs">
+      <button class="period-tab ${currentPeriod==='today'?'active':''}" onclick="setPeriod('today')">Today</button>
+      <button class="period-tab ${currentPeriod==='week'?'active':''}" onclick="setPeriod('week')">Last 7 Days</button>
+      <button class="period-tab ${currentPeriod==='month'?'active':''}" onclick="setPeriod('month')">This Month</button>
+      <button class="period-tab ${currentPeriod==='all'?'active':''}" onclick="setPeriod('all')">All Time</button>
+    </div>
+
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px;">${pLabels[currentPeriod]}</div>
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Raised</div>
+        <div class="kpi-val">${fmt(total)}</div>
+        <div class="kpi-sub">${count} donation${count!==1?'s':''}</div>
+      </div>
+      <div class="kpi-card gold">
+        <div class="kpi-label">Average Gift</div>
+        <div class="kpi-val" style="color:var(--gold)">${fmt(avg)}</div>
+        <div class="kpi-sub">per donation</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="kpi-label">Largest Gift</div>
+        <div class="kpi-val" style="color:#0891b2">${maxD?fmt(maxD.amount):'£0'}</div>
+        <div class="kpi-sub">${maxD?maxD.category:'—'}</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="kpi-label">Top Fund</div>
+        <div class="kpi-val" style="font-size:22px;color:#7c3aed">${top?top[0]:'—'}</div>
+        <div class="kpi-sub">${top?fmt(top[1])+' raised':'No donations yet'}</div>
+      </div>
+    </div>
+
+    <!-- Charts row -->
+    <div class="two-col">
+      <div class="sc">
+        <div class="sc-title">Daily totals <span class="sc-badge">14 days</span></div>
+        <div class="chart-wrap"><div class="chart-bars">
+          ${days.map(d=>{
+            const h=Math.max(Math.round((d.t/maxV)*108),d.t?5:2);
+            return `<div class="bar-col">
+              <div class="bar-val">${d.t?'£'+Math.round(d.t):''}</div>
+              <div class="bar-fill${d.isWe?' weekend':''}" style="height:${h}px" title="${d.dateNum}: £${d.t.toFixed(2)}"></div>
+              <div class="bar-label">${d.lbl}</div>
+            </div>`;
+          }).join('')}
+        </div></div>
+      </div>
+
+      <div class="sc">
+        <div class="sc-title">Category breakdown</div>
+        ${ALL_CATS.map((cat,i)=>{
+          const a=catT[cat]||0,c=catC[cat]||0,pct=top?Math.round((a/top[1])*100):0,tpct=total?Math.round((a/total)*100):0;
+          return `<div class="cat-row">
+            <div class="cn">${cat}</div>
+            <div class="cb-wrap"><div class="cb ${CBAR[i]}" style="width:${pct}%"></div></div>
+            <div class="ca">${fmt(a)}</div>
+            <div class="cc">${c}x</div>
+            <div class="cpct">${tpct}%</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- Transaction log -->
+    <div class="sc">
+      <div class="sc-title">Transaction log <span class="sc-badge">${recent.length} shown</span></div>
+      ${recent.length?`
+      <div style="overflow-x:auto;">
+        <table class="tx-table">
+          <thead><tr>
+            <th>Category</th>
+            <th>Amount</th>
+            <th class="time-col">Date</th>
+            <th class="time-col">Time</th>
+          </tr></thead>
+          <tbody>
+            ${recent.map(d=>{
+              const dt=new Date(d.ts);
+              return `<tr>
+                <td><span class="cat-pill">${d.category}</span></td>
+                <td class="amt">${fmt(d.amount)}</td>
+                <td class="time-col">${dt.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</td>
+                <td class="time-col">${dt.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`
+      :`<div class="no-data"><span class="no-data-icon">🕌</span>No donations in this period</div>`}
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row">
+      <button class="action-btn primary" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="action-btn secondary" onclick="window.location.reload()">↻ Refresh</button>
+    </div>
+  `;
+}
+
+function setPeriod(p){ currentPeriod=p; render(); }
+
+function exportCSV(){
+  const data=filter(allDonations,currentPeriod);
+  const rows=data.map(d=>{ const dt=new Date(d.ts); return `${dt.toLocaleDateString('en-GB')},${dt.toLocaleTimeString('en-GB')},${d.category},${d.amount.toFixed(2)}`; });
+  const blob=new Blob(['Date,Time,Category,Amount (£)\n'+rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`AQS_Donations_${currentPeriod}_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+render();
+</script>
+</body>
+</html>
